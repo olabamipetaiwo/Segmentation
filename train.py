@@ -176,17 +176,20 @@ def run_validation(
     val_loader: DataLoader,
     device: str,
     image_size: int,
-    max_prompts: int,
+    iou_filter_threshold: float = 0.5,
 ) -> Dict[str, float]:
     """
-    Evaluate the model on a validation DataLoader using GT centroids as prompts.
+    Evaluate the model on a validation DataLoader using all GT centroids as prompts.
+
+    All centroids in each validation image are used (no sampling cap) so that AJI
+    and PQ are computed on the full instance set, not a random subset.
 
     Inputs:
         model: MobileSAMLoRA model
         val_loader: DataLoader yielding validation batches
         device: torch device string
         image_size: spatial resolution of the images
-        max_prompts: maximum number of nucleus prompts per image
+        iou_filter_threshold: predicted IoU score below which a mask is discarded
     Outputs:
         dict with mean 'dice', 'aji', 'pq', 'sq', 'dq' across all validation images
     """
@@ -209,25 +212,23 @@ def run_validation(
                 if not centroids:
                     continue
 
-                sampled = (
-                    random.sample(centroids, max_prompts)
-                    if len(centroids) > max_prompts
-                    else centroids
-                )
-
-                point_coords, point_labels = build_point_prompts(sampled, device=device)
+                # Use all centroids at validation time for accurate metrics
+                point_coords, point_labels = build_point_prompts(centroids, device=device)
                 low_res_masks, iou_preds = model(image, point_coords, point_labels)
 
                 # Upsample and threshold
                 pred_full = model.upsample_masks(low_res_masks, (image_size, image_size))
                 pred_binary_np = (torch.sigmoid(pred_full).squeeze(1).cpu().numpy() > 0.5)
 
-                # Build predicted instance map
+                # Build predicted instance map: highest-confidence masks placed first;
+                # masks below the IoU threshold are discarded as false positives
                 pred_instance_map = np.zeros((image_size, image_size), dtype=np.int32)
                 iou_scores_np = iou_preds.squeeze(1).cpu().numpy()
                 sorted_order = np.argsort(-iou_scores_np)
 
                 for rank_idx in sorted_order:
+                    if iou_scores_np[rank_idx] < iou_filter_threshold:
+                        continue
                     nucleus_mask = pred_binary_np[rank_idx]
                     free_pixels = (pred_instance_map == 0) & nucleus_mask
                     if free_pixels.sum() >= 10:
@@ -307,7 +308,7 @@ def train_one_fold(
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, lr=config["learning_rate"])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=config["num_epochs"]
+        optimizer, T_max=config["num_epochs"], eta_min=1e-6
     )
 
     criterion = CombinedLoss()
@@ -400,6 +401,7 @@ def train_one_fold(
             if num_valid_steps > 0:
                 avg_batch_loss = batch_loss / num_valid_steps
                 avg_batch_loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 optimizer.step()
                 epoch_loss_total += avg_batch_loss.item()
                 epoch_loss_count += 1
@@ -410,7 +412,8 @@ def train_one_fold(
 
         # Validate
         val_metrics = run_validation(
-            model, val_loader, device, config["image_size"], max_prompts
+            model, val_loader, device, config["image_size"],
+            iou_filter_threshold=config["iou_filter_threshold"],
         )
 
         print(
