@@ -24,9 +24,9 @@ SAM_PIXEL_MEAN = np.array([123.675, 116.28, 103.53], dtype=np.float32)
 SAM_PIXEL_STD = np.array([58.395, 57.12, 57.375], dtype=np.float32)
 
 
-# ---------------------------------------------------------------------------
+# 
 # Augmentation pipelines
-# ---------------------------------------------------------------------------
+# 
 
 def get_train_transform(image_size: int = 1024) -> A.Compose:
     """
@@ -43,10 +43,18 @@ def get_train_transform(image_size: int = 1024) -> A.Compose:
     return A.Compose(
         [
             A.Resize(image_size, image_size, interpolation=cv2.INTER_LINEAR),
+            # Geometric
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
             A.RandomRotate90(p=0.5),
-            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.05, p=0.5),
+            A.Rotate(limit=30, interpolation=cv2.INTER_LINEAR,
+                     border_mode=cv2.BORDER_REFLECT_101, p=0.5),
+            # Intensity / stain variation (H&E-specific)
+            A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.5),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.3, hue=0.1, p=0.5),
+            # Microscope artefacts
+            A.GaussNoise(var_limit=(10.0, 50.0), p=0.3),
+            A.GaussianBlur(blur_limit=(3, 5), p=0.2),
         ],
         additional_targets={"instance_map": "mask"},
     )
@@ -69,9 +77,9 @@ def get_val_transform(image_size: int = 1024) -> A.Compose:
     )
 
 
-# ---------------------------------------------------------------------------
+# 
 # Dataset
-# ---------------------------------------------------------------------------
+# 
 
 class NuInsSegDataset(Dataset):
     """
@@ -199,9 +207,9 @@ class NuInsSegDataset(Dataset):
         }
 
 
-# ---------------------------------------------------------------------------
+# 
 # Collate function for DataLoader
-# ---------------------------------------------------------------------------
+# 
 
 def nuinsseg_collate_fn(batch: List[Dict]) -> Dict:
     """

@@ -1,0 +1,136 @@
+image_path,dice,aji,pq,sq,dq
+data/nuinsseg/human bladder/tissue images/human_bladder_01.png,0.234573,0.101873,0.070317,0.650434,0.108108
+data/nuinsseg/human bladder/tissue images/human_bladder_08.png,0.231715,0.088937,0.058998,0.668644,0.088235
+data/nuinsseg/human bladder/tissue images/human_bladder_10.png,0.131754,0.065085,0.082781,0.701050,0.118081
+data/nuinsseg/human bladder/tissue images/human_bladder_12.png,0.104314,0.049328,0.057053,0.697605,0.081784
+data/nuinsseg/human brain/tissue images/human_brain_12.png,0.052576,0.024987,0.020525,0.654245,0.031373
+data/nuinsseg/human brain/tissue images/human_brain_4.png,0.068411,0.032711,0.034353,0.718551,0.047809
+data/nuinsseg/human brain/tissue images/human_brain_8.png,0.102420,0.047393,0.044196,0.628572,0.070312
+data/nuinsseg/human brain/tissue images/human_brain_9.png,0.076331,0.031866,0.027715,0.709516,0.039062
+data/nuinsseg/human cardia/tissue images/human_cardia_2.png,0.247067,0.114513,0.092208,0.640842,0.143885
+data/nuinsseg/human cardia/tissue images/human_cardia_3.png,0.425842,0.198596,0.107036,0.622393,0.171975
+data/nuinsseg/human cardia/tissue images/human_cardia_7.png,0.135070,0.057112,0.041477,0.655847,0.063241
+data/nuinsseg/human cerebellum/tissue images/human_cerebellum_4.png,0.083072,0.042466,0.043163,0.795425,0.054264
+data/nuinsseg/human cerebellum/tissue images/human_cerebellum_5.png,0.491826,0.244670,0.160211,0.657886,0.243523
+data/nuinsseg/human jejunum/tissue images/human_jejunum_03.png,0.494327,0.251096,0.180653,0.682468,0.264706
+data/nuinsseg/human jejunum/tissue images/human_jejunum_08.png,0.496657,0.214179,0.129191,0.666794,0.193750
+data/nuinsseg/human jejunum/tissue images/human_jejunum_10.png,0.542444,0.271072,0.185740,0.678519,0.273743
+data/nuinsseg/human kidney/tissue images/human_kidney_05.png,0.550092,0.253695,0.160929,0.635669,0.253165
+data/nuinsseg/human kidney/tissue images/human_kidney_07.png,0.594333,0.268071,0.146681,0.660064,0.222222
+data/nuinsseg/human kidney/tissue images/human_kidney_11.png,0.533964,0.256869,0.175732,0.709519,0.247678
+data/nuinsseg/human liver/tissue images/human_liver_04.png,0.415449,0.194037,0.162992,0.720319,0.226277
+data/nuinsseg/human liver/tissue images/human_liver_05.png,0.428496,0.224932,0.200964,0.746436,0.269231
+data/nuinsseg/human liver/tissue images/human_liver_09.png,0.309017,0.124283,0.115217,0.696541,0.165414
+data/nuinsseg/human liver/tissue images/human_liver_10.png,0.263392,0.104721,0.076735,0.672709,0.114068
+data/nuinsseg/human liver/tissue images/human_liver_13.png,0.323072,0.152953,0.126192,0.713261,0.176923
+data/nuinsseg/human liver/tissue images/human_liver_14.png,0.371221,0.182585,0.151624,0.720212,0.210526
+data/nuinsseg/human liver/tissue images/human_liver_25.png,0.299862,0.121399,0.093244,0.721272,0.129278
+data/nuinsseg/human liver/tissue images/human_liver_35.png,0.371385,0.170504,0.158147,0.722569,0.218868
+data/nuinsseg/human liver/tissue images/human_liver_37.png,0.333451,0.138231,0.121514,0.703769,0.172662
+data/nuinsseg/human liver/tissue images/human_liver_38.png,0.397161,0.182789,0.141282,0.657173,0.214984
+data/nuinsseg/human melanoma/tissue images/human_melanoma_07.png,0.235884,0.095364,0.062643,0.652931,0.095941
+data/nuinsseg/human melanoma/tissue images/human_melanoma_10.png,0.160468,0.071240,0.019841,0.709304,0.027972
+data/nuinsseg/human oesophagus/tissue images/human_oesophagus_02.png,0.377090,0.159370,0.143105,0.646142,0.221477
+data/nuinsseg/human oesophagus/tissue images/human_oesophagus_16.png,0.193827,0.063243,0.038490,0.709324,0.054264
+data/nuinsseg/human oesophagus/tissue images/human_oesophagus_24.png,0.256221,0.127298,0.115865,0.768365,0.150794
+data/nuinsseg/human oesophagus/tissue images/human_oesophagus_27.png,0.235493,0.081840,0.040274,0.739322,0.054475
+data/nuinsseg/human oesophagus/tissue images/human_oesophagus_28.png,0.503540,0.192282,0.140247,0.635120,0.220820
+data/nuinsseg/human oesophagus/tissue images/human_oesophagus_34.png,0.616307,0.278587,0.166462,0.676800,0.245955
+data/nuinsseg/human oesophagus/tissue images/human_oesophagus_38.png,0.340917,0.137872,0.084041,0.674799,0.124542
+data/nuinsseg/human oesophagus/tissue images/human_oesophagus_46.png,0.455368,0.218277,0.201539,0.729483,0.276276
+data/nuinsseg/human pancreas/tissue images/human_pancreas_05.png,0.448405,0.226444,0.209057,0.698441,0.299320
+data/nuinsseg/human pancreas/tissue images/human_pancreas_14.png,0.285573,0.138364,0.093387,0.703149,0.132812
+data/nuinsseg/human pancreas/tissue images/human_pancreas_17.png,0.470572,0.217900,0.139186,0.681533,0.204225
+data/nuinsseg/human pancreas/tissue images/human_pancreas_20.png,0.279351,0.127591,0.099364,0.640899,0.155039
+data/nuinsseg/human pancreas/tissue images/human_pancreas_23.png,0.402446,0.201435,0.165095,0.704235,0.234432
+data/nuinsseg/human pancreas/tissue images/human_pancreas_38.png,0.389716,0.174423,0.141380,0.712136,0.198529
+data/nuinsseg/human pancreas/tissue images/human_pancreas_40.png,0.345260,0.166431,0.137692,0.749363,0.183746
+data/nuinsseg/human peritoneum/tissue images/human_peritoneum_10.png,0.103888,0.049165,0.040686,0.650969,0.062500
+data/nuinsseg/human peritoneum/tissue images/human_peritoneum_2.png,0.254055,0.098412,0.038558,0.713320,0.054054
+data/nuinsseg/human peritoneum/tissue images/human_peritoneum_4.png,0.405030,0.173305,0.116573,0.664469,0.175439
+data/nuinsseg/human peritoneum/tissue images/human_peritoneum_5.png,0.225590,0.092170,0.043066,0.619667,0.069498
+data/nuinsseg/human placenta/tissue images/human_placenta_02.png,0.323536,0.148409,0.124857,0.774684,0.161172
+data/nuinsseg/human placenta/tissue images/human_placenta_10.png,0.374103,0.160828,0.115799,0.668259,0.173285
+data/nuinsseg/human placenta/tissue images/human_placenta_17.png,0.368424,0.182093,0.144947,0.727419,0.199262
+data/nuinsseg/human placenta/tissue images/human_placenta_21.png,0.359547,0.143390,0.110049,0.702810,0.156584
+data/nuinsseg/human placenta/tissue images/human_placenta_24.png,0.506442,0.212809,0.148717,0.667103,0.222930
+data/nuinsseg/human placenta/tissue images/human_placenta_27.png,0.490250,0.215478,0.142865,0.692894,0.206186
+data/nuinsseg/human placenta/tissue images/human_placenta_35.png,0.510257,0.220949,0.148601,0.675457,0.220000
+data/nuinsseg/human placenta/tissue images/human_placenta_36.png,0.531822,0.234617,0.125272,0.671098,0.186667
+data/nuinsseg/human placenta/tissue images/human_placenta_38.png,0.395772,0.175000,0.140620,0.692683,0.203008
+data/nuinsseg/human placenta/tissue images/human_placenta_40.png,0.483241,0.219143,0.148835,0.690286,0.215613
+data/nuinsseg/human pylorus/tissue images/human_pylorus_10.png,0.276005,0.121409,0.122238,0.686413,0.178082
+data/nuinsseg/human pylorus/tissue images/human_pylorus_3.png,0.212287,0.094147,0.067707,0.690090,0.098113
+data/nuinsseg/human rectum/tissue images/human_rectum_2.png,0.276978,0.093237,0.031569,0.713451,0.044248
+data/nuinsseg/human rectum/tissue images/human_rectum_3.png,0.182642,0.079415,0.053975,0.638705,0.084507
+data/nuinsseg/human rectum/tissue images/human_rectum_9.png,0.266272,0.116576,0.106588,0.684829,0.155642
+data/nuinsseg/human salivory gland/tissue images/human_salivory_01.png,0.514723,0.248475,0.198521,0.706365,0.281046
+data/nuinsseg/human salivory gland/tissue images/human_salivory_02.png,0.404634,0.191728,0.174547,0.713588,0.244604
+data/nuinsseg/human salivory gland/tissue images/human_salivory_09.png,0.206540,0.080807,0.048593,0.609435,0.079734
+data/nuinsseg/human salivory gland/tissue images/human_salivory_15.png,0.230671,0.086354,0.056030,0.592319,0.094595
+data/nuinsseg/human salivory gland/tissue images/human_salivory_16.png,0.233694,0.104590,0.091203,0.684024,0.133333
+data/nuinsseg/human salivory gland/tissue images/human_salivory_18.png,0.468380,0.188937,0.135800,0.663668,0.204620
+data/nuinsseg/human salivory gland/tissue images/human_salivory_20.png,0.484712,0.243305,0.180027,0.680873,0.264407
+data/nuinsseg/human salivory gland/tissue images/human_salivory_22.png,0.420236,0.199948,0.178163,0.701232,0.254072
+data/nuinsseg/human salivory gland/tissue images/human_salivory_23.png,0.509601,0.229765,0.155762,0.687947,0.226415
+data/nuinsseg/human salivory gland/tissue images/human_salivory_26.png,0.055708,0.022936,0.029028,0.655543,0.044280
+data/nuinsseg/human salivory gland/tissue images/human_salivory_28.png,0.405699,0.188123,0.156913,0.694219,0.226027
+data/nuinsseg/human salivory gland/tissue images/human_salivory_31.png,0.480910,0.222178,0.135920,0.654355,0.207715
+data/nuinsseg/human salivory gland/tissue images/human_salivory_35.png,0.424297,0.181031,0.132869,0.673200,0.197368
+data/nuinsseg/human salivory gland/tissue images/human_salivory_37.png,0.386242,0.169953,0.162309,0.678367,0.239264
+data/nuinsseg/human salivory gland/tissue images/human_salivory_39.png,0.488590,0.218518,0.188442,0.688712,0.273616
+data/nuinsseg/human salivory gland/tissue images/human_salivory_42.png,0.470035,0.240668,0.218914,0.706910,0.309677
+data/nuinsseg/human salivory gland/tissue images/human_salivory_43.png,0.503533,0.243173,0.210341,0.694126,0.303030
+data/nuinsseg/human spleen/tissue images/human_spleen_07.png,0.351108,0.172542,0.132642,0.695045,0.190840
+data/nuinsseg/human spleen/tissue images/human_spleen_33.png,0.567447,0.267721,0.173182,0.683452,0.253394
+data/nuinsseg/human testis/tissue images/human_testis_11.png,0.110585,0.050008,0.023201,0.762745,0.030418
+data/nuinsseg/human testis/tissue images/human_testis_6.png,0.275180,0.118219,0.073469,0.669090,0.109804
+data/nuinsseg/human testis/tissue images/human_testis_9.png,0.288761,0.140118,0.103526,0.612156,0.169118
+data/nuinsseg/human tongue/tissue images/human_tongue_03.png,0.178594,0.046733,0.021850,0.589937,0.037037
+data/nuinsseg/human tongue/tissue images/human_tongue_09.png,0.171484,0.067750,0.042806,0.632583,0.067669
+data/nuinsseg/human tongue/tissue images/human_tongue_18.png,0.136862,0.054904,0.038930,0.669114,0.058182
+data/nuinsseg/human tongue/tissue images/human_tongue_20.png,0.302766,0.116913,0.082142,0.639842,0.128378
+data/nuinsseg/human tongue/tissue images/human_tongue_24.png,0.226743,0.071266,0.030965,0.632566,0.048951
+data/nuinsseg/human tongue/tissue images/human_tongue_28.png,0.466505,0.162783,0.048458,0.639278,0.075802
+data/nuinsseg/human tongue/tissue images/human_tongue_31.png,0.265105,0.096068,0.042048,0.596319,0.070513
+data/nuinsseg/human tongue/tissue images/human_tongue_36.png,0.129355,0.058689,0.069123,0.709837,0.097378
+data/nuinsseg/human tongue/tissue images/human_tongue_38.png,0.269388,0.109817,0.070469,0.704691,0.100000
+data/nuinsseg/human tongue/tissue images/human_tongue_39.png,0.199598,0.071579,0.033954,0.691214,0.049123
+data/nuinsseg/human tongue/tissue images/human_tongue_40.png,0.176132,0.057711,0.022305,0.631225,0.035336
+data/nuinsseg/human umbilical cord/tissue images/human_umbilical_cord_11.png,0.039156,0.017014,0.008120,0.539959,0.015038
+data/nuinsseg/mouse fat (white and brown)_subscapula/tissue images/mouse_subscapula_06.png,0.027472,0.012595,0.008985,0.575072,0.015625
+data/nuinsseg/mouse fat (white and brown)_subscapula/tissue images/mouse_subscapula_10.png,0.063800,0.026574,0.014674,0.574715,0.025532
+data/nuinsseg/mouse fat (white and brown)_subscapula/tissue images/mouse_subscapula_17.png,0.090054,0.037545,0.020208,0.644133,0.031373
+data/nuinsseg/mouse fat (white and brown)_subscapula/tissue images/mouse_subscapula_24.png,0.009205,0.004593,0.004469,0.560826,0.007968
+data/nuinsseg/mouse fat (white and brown)_subscapula/tissue images/mouse_subscapula_28.png,0.047539,0.021332,0.013496,0.553331,0.024390
+data/nuinsseg/mouse fat (white and brown)_subscapula/tissue images/mouse_subscapula_32.png,0.020478,0.008130,0.011304,0.695199,0.016260
+data/nuinsseg/mouse fat (white and brown)_subscapula/tissue images/mouse_subscapula_41.png,0.108766,0.048305,0.031214,0.601980,0.051852
+data/nuinsseg/mouse femur/tissue images/mouse_femur_01.png,0.336987,0.139530,0.105599,0.680526,0.155172
+data/nuinsseg/mouse femur/tissue images/mouse_femur_02.png,0.546168,0.258838,0.140807,0.671539,0.209677
+data/nuinsseg/mouse heart/tissue images/mouse_heart_07.png,0.150865,0.053733,0.030868,0.617361,0.050000
+data/nuinsseg/mouse heart/tissue images/mouse_heart_08.png,0.040004,0.016665,0.008321,0.559556,0.014870
+data/nuinsseg/mouse heart/tissue images/mouse_heart_09.png,0.055015,0.025871,0.012893,0.593099,0.021739
+data/nuinsseg/mouse heart/tissue images/mouse_heart_17.png,0.062485,0.025865,0.018572,0.636089,0.029197
+data/nuinsseg/mouse heart/tissue images/mouse_heart_24.png,0.085770,0.034911,0.016595,0.593280,0.027972
+data/nuinsseg/mouse heart/tissue images/mouse_heart_25.png,0.113010,0.046053,0.047216,0.603071,0.078292
+data/nuinsseg/mouse kidney/tissue images/mouse_kidney_02.png,0.317327,0.169624,0.198336,0.749270,0.264706
+data/nuinsseg/mouse kidney/tissue images/mouse_kidney_07.png,0.222927,0.105124,0.098796,0.696774,0.141791
+data/nuinsseg/mouse kidney/tissue images/mouse_kidney_09.png,0.288787,0.121039,0.106790,0.698991,0.152778
+data/nuinsseg/mouse kidney/tissue images/mouse_kidney_22.png,0.257202,0.119774,0.099701,0.609534,0.163569
+data/nuinsseg/mouse kidney/tissue images/mouse_kidney_30.png,0.263889,0.121557,0.104144,0.684377,0.152174
+data/nuinsseg/mouse kidney/tissue images/mouse_kidney_34.png,0.296122,0.146307,0.120653,0.663594,0.181818
+data/nuinsseg/mouse liver/tissue images/mouse_liver_01.png,0.186742,0.072770,0.050393,0.665190,0.075758
+data/nuinsseg/mouse liver/tissue images/mouse_liver_03.png,0.174309,0.071947,0.067090,0.676056,0.099237
+data/nuinsseg/mouse liver/tissue images/mouse_liver_06.png,0.212092,0.100710,0.079838,0.732795,0.108949
+data/nuinsseg/mouse liver/tissue images/mouse_liver_17.png,0.141531,0.052259,0.038043,0.625339,0.060837
+data/nuinsseg/mouse liver/tissue images/mouse_liver_18.png,0.139850,0.059945,0.044846,0.655244,0.068441
+data/nuinsseg/mouse liver/tissue images/mouse_liver_26.png,0.144079,0.055487,0.037015,0.565505,0.065455
+data/nuinsseg/mouse liver/tissue images/mouse_liver_29.png,0.140511,0.051538,0.044705,0.653190,0.068441
+data/nuinsseg/mouse muscle_tibia/tissue images/mouse_muscle_tibia_05.png,0.097246,0.033855,0.030090,0.654467,0.045977
+data/nuinsseg/mouse muscle_tibia/tissue images/mouse_muscle_tibia_08.png,0.020186,0.008298,0.005434,0.619442,0.008772
+data/nuinsseg/mouse muscle_tibia/tissue images/mouse_muscle_tibia_10.png,0.042193,0.014728,0.004586,0.600722,0.007634
+data/nuinsseg/mouse muscle_tibia/tissue images/mouse_muscle_tibia_13.png,0.004703,0.002357,0.000000,0.000000,0.000000
+data/nuinsseg/mouse spleen/tissue images/mouse_spleen_03.png,0.525273,0.232006,0.150668,0.638993,0.235789
+data/nuinsseg/mouse thymus/tissue images/mouse_thymus_01.png,0.684714,0.292427,0.179235,0.637662,0.281081
+data/nuinsseg/tissue images/human_muscle_10.png,0.042527,0.018860,0.010184,0.613569,0.016598
+data/nuinsseg/tissue images/human_muscle_2.png,0.079489,0.037968,0.021368,0.665093,0.032129

@@ -35,6 +35,9 @@ CLAUDE.md
 claude.md
 
 
+# MobileSAM (cloned locally, not tracked)
+MobileSAM/
+
 # Ignore PyTorch model weights
 *.pth
 *.pt

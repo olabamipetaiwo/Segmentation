@@ -31,29 +31,31 @@ from utils.losses import CombinedLoss
 from utils.metrics import compute_all_metrics
 from utils.prompt_utils import build_point_prompts, extract_centroids_from_instances
 
-# ---------------------------------------------------------------------------
+# 
 # Configuration
-# ---------------------------------------------------------------------------
+# 
 
 CONFIG: Dict = {
-    "lora_rank": 4,
+    "lora_rank": 8,            # increased from 4 for more adaptation capacity
     "lora_alpha": 1.0,
     "learning_rate": 1e-4,
-    "batch_size": 4,           # number of images per gradient update
-    "num_epochs": 50,
+    "batch_size": 1,           # number of images per gradient update
+    "num_epochs": 120,         # extended: loss still decreasing at epoch 75
+    "warmup_epochs": 3,        # linear LR warmup before cosine decay
     "image_size": 1024,
     "num_folds": 5,
     "random_state": 42,
     "checkpoint_dir": "checkpoints",
     "log_dir": "logs",
-    "max_prompts_per_image": 16,  # max nucleus prompts sampled per image per step
-    "iou_filter_threshold": 0.5,  # minimum predicted IoU to keep a mask at validation
+    "max_prompts_per_image": 6,    # kept at 6 (GPU memory constrained: ~2.5 GB free)
+    "iou_filter_threshold": 0.35,  # lowered from 0.5: IoU predictor tends to underestimate
+    "iou_loss_weight": 0.5,        # weight for auxiliary IoU prediction loss
     "device": "cuda" if torch.cuda.is_available() else "cpu",
 }
 
-# ---------------------------------------------------------------------------
+# 
 # Reproducibility
-# ---------------------------------------------------------------------------
+# 
 
 def set_all_seeds(seed: int) -> None:
     """
@@ -73,9 +75,9 @@ def set_all_seeds(seed: int) -> None:
     torch.backends.cudnn.benchmark = False
 
 
-# ---------------------------------------------------------------------------
+# 
 # Fold generation
-# ---------------------------------------------------------------------------
+# 
 
 def collect_image_paths(data_root: str) -> List[str]:
     """
@@ -133,9 +135,9 @@ def generate_and_save_folds(
     return folds
 
 
-# ---------------------------------------------------------------------------
+# 
 # Per-step training helpers
-# ---------------------------------------------------------------------------
+# 
 
 def get_nucleus_target_mask(
     instance_map_np: np.ndarray,
@@ -167,9 +169,9 @@ def get_nucleus_target_mask(
     return nucleus_mask, instance_id
 
 
-# ---------------------------------------------------------------------------
+# 
 # Validation
-# ---------------------------------------------------------------------------
+# 
 
 def run_validation(
     model: MobileSAMLoRA,
@@ -212,18 +214,26 @@ def run_validation(
                 if not centroids:
                     continue
 
-                # Use all centroids at validation time for accurate metrics
-                point_coords, point_labels = build_point_prompts(centroids, device=device)
-                low_res_masks, iou_preds = model(image, point_coords, point_labels)
+                # Process prompts in chunks to avoid OOM on images with many nuclei
+                val_chunk = 16
+                all_masks_np: List[np.ndarray] = []
+                all_iou_np: List[float] = []
+                for chunk_start in range(0, len(centroids), val_chunk):
+                    chunk = centroids[chunk_start : chunk_start + val_chunk]
+                    pc, pl = build_point_prompts(chunk, device=device)
+                    lrm, iou_c = model(image, pc, pl)
+                    pm = model.upsample_masks(lrm, (image_size, image_size))
+                    all_masks_np.append(
+                        (torch.sigmoid(pm).squeeze(1).cpu().numpy() > 0.5)
+                    )
+                    all_iou_np.append(iou_c.squeeze(1).cpu().numpy())
 
-                # Upsample and threshold
-                pred_full = model.upsample_masks(low_res_masks, (image_size, image_size))
-                pred_binary_np = (torch.sigmoid(pred_full).squeeze(1).cpu().numpy() > 0.5)
+                pred_binary_np = np.concatenate(all_masks_np, axis=0)
+                iou_scores_np = np.concatenate(all_iou_np, axis=0)
 
                 # Build predicted instance map: highest-confidence masks placed first;
                 # masks below the IoU threshold are discarded as false positives
                 pred_instance_map = np.zeros((image_size, image_size), dtype=np.int32)
-                iou_scores_np = iou_preds.squeeze(1).cpu().numpy()
                 sorted_order = np.argsort(-iou_scores_np)
 
                 for rank_idx in sorted_order:
@@ -248,9 +258,9 @@ def run_validation(
             for key, vals in metric_accumulator.items()}
 
 
-# ---------------------------------------------------------------------------
+# 
 # Main training loop
-# ---------------------------------------------------------------------------
+# 
 
 def train_one_fold(
     fold_index: int,
@@ -258,6 +268,7 @@ def train_one_fold(
     val_paths: List[str],
     config: Dict,
     sam_checkpoint: str,
+    resume_checkpoint: str = None,
 ) -> Dict[str, float]:
     """
     Train MobileSAMLoRA for one cross-validation fold.
@@ -304,12 +315,22 @@ def train_one_fold(
         lora_alpha=config["lora_alpha"],
     ).to(device)
 
-    # Optimizer and scheduler
+    # Optimizer and scheduler (linear warmup then cosine decay)
     trainable_params = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable_params, lr=config["learning_rate"])
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=config["num_epochs"], eta_min=1e-6
+    warmup_epochs = config.get("warmup_epochs", 3)
+    warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+        optimizer, start_factor=0.1, end_factor=1.0, total_iters=warmup_epochs
     )
+    cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=config["num_epochs"] - warmup_epochs, eta_min=1e-6
+    )
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer,
+        schedulers=[warmup_scheduler, cosine_scheduler],
+        milestones=[warmup_epochs],
+    )
+    scaler = torch.cuda.amp.GradScaler(enabled=(device == "cuda"))
 
     criterion = CombinedLoss()
 
@@ -322,15 +343,36 @@ def train_one_fold(
     log_csv_path = log_dir / f"fold_{fold_index + 1}_metrics.csv"
 
     csv_fields = ["epoch", "train_loss", "val_dice", "val_aji", "val_pq", "val_sq", "val_dq"]
-    csv_file = open(str(log_csv_path), "w", newline="")
-    csv_writer = csv.DictWriter(csv_file, fieldnames=csv_fields)
-    csv_writer.writeheader()
 
+    # Resume from checkpoint if requested
+    start_epoch = 1
     best_val_aji = -1.0
     best_metrics: Dict[str, float] = {}
+
+    if resume_checkpoint is not None:
+        print(f"  Resuming from: {resume_checkpoint}")
+        ckpt = torch.load(resume_checkpoint, map_location=device)
+        model.load_state_dict(ckpt["model_state_dict"])
+        if "optimizer_state_dict" in ckpt:
+            optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        start_epoch = ckpt["epoch"] + 1
+        if "val_metrics" in ckpt:
+            best_val_aji = ckpt["val_metrics"].get("aji", -1.0)
+            best_metrics = dict(ckpt["val_metrics"])
+        # Fast-forward scheduler to the correct state
+        for _ in range(ckpt["epoch"]):
+            scheduler.step()
+        print(f"  Resuming from epoch {start_epoch}, best AJI so far: {best_val_aji:.4f}")
+
+    # Open CSV: append if resuming, write fresh otherwise
+    csv_file = open(str(log_csv_path), "a" if resume_checkpoint is not None else "w", newline="")
+    csv_writer = csv.DictWriter(csv_file, fieldnames=csv_fields)
+    if resume_checkpoint is None:
+        csv_writer.writeheader()
+
     max_prompts = config["max_prompts_per_image"]
 
-    for epoch in range(1, config["num_epochs"] + 1):
+    for epoch in range(start_epoch, config["num_epochs"] + 1):
         model.train()
         epoch_loss_total = 0.0
         epoch_loss_count = 0
@@ -377,8 +419,22 @@ def train_one_fold(
                 if not valid_centroids:
                     continue
 
+                # Sample one background (negative) point per nucleus.
+                # Picking a point from the background region improves boundary
+                # delineation and is standard practice when fine-tuning SAM.
+                bg_pixels = np.argwhere(instance_map_np == 0)
+                neg_centroids: List[Tuple[float, float]] = []
+                for _ in valid_centroids:
+                    if len(bg_pixels) > 0:
+                        idx = random.randrange(len(bg_pixels))
+                        neg_centroids.append(
+                            (float(bg_pixels[idx, 0]), float(bg_pixels[idx, 1]))
+                        )
+                    else:
+                        neg_centroids.append((0.0, 0.0))
+
                 point_coords, point_labels = build_point_prompts(
-                    valid_centroids, device=device
+                    valid_centroids, neg_centroids=neg_centroids, device=device
                 )
 
                 # Stack targets: (K, 1, H, W)
@@ -386,23 +442,37 @@ def train_one_fold(
                     np.stack(target_mask_list, axis=0)[:, np.newaxis, :, :]
                 ).to(device)
 
-                # Forward pass
-                low_res_masks, _ = model(image, point_coords, point_labels)
+                # Forward pass with AMP
+                with torch.cuda.amp.autocast(enabled=(device == "cuda")):
+                    low_res_masks, iou_preds = model(image, point_coords, point_labels)
 
-                # Upsample predictions to full resolution for loss
-                pred_masks = model.upsample_masks(
-                    low_res_masks, (config["image_size"], config["image_size"])
-                )
+                    # Upsample predictions to full resolution for loss
+                    pred_masks = model.upsample_masks(
+                        low_res_masks, (config["image_size"], config["image_size"])
+                    )
 
-                step_loss = criterion(pred_masks, target_masks)
+                    seg_loss = criterion(pred_masks, target_masks)
+
+                    # Auxiliary IoU prediction loss: MSE(predicted_iou, actual_iou)
+                    with torch.no_grad():
+                        pred_binary = (torch.sigmoid(pred_masks.detach()) > 0.5).float()
+                        inter = (pred_binary * target_masks).sum(dim=(-2, -1))
+                        union = ((pred_binary + target_masks) >= 1).float().sum(dim=(-2, -1))
+                        actual_iou = (inter / (union + 1e-6)).squeeze(1)  # (N,)
+                    iou_loss = F.mse_loss(iou_preds[:, 0], actual_iou)
+
+                    step_loss = seg_loss + config.get("iou_loss_weight", 0.5) * iou_loss
+
                 batch_loss = batch_loss + step_loss
                 num_valid_steps += 1
 
             if num_valid_steps > 0:
                 avg_batch_loss = batch_loss / num_valid_steps
-                avg_batch_loss.backward()
+                scaler.scale(avg_batch_loss).backward()
+                scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                optimizer.step()
+                scaler.step(optimizer)
+                scaler.update()
                 epoch_loss_total += avg_batch_loss.item()
                 epoch_loss_count += 1
                 pbar.set_postfix(loss=f"{avg_batch_loss.item():.4f}")
@@ -480,6 +550,8 @@ def main() -> None:
     parser.add_argument("--fold", type=int, default=None,
                         help="Train only this specific fold (0-indexed). "
                              "Omit to train all folds.")
+    parser.add_argument("--resume", type=str, default=None,
+                        help="Path to a checkpoint (.pt) to resume training from.")
     args = parser.parse_args()
 
     set_all_seeds(CONFIG["random_state"])
@@ -518,6 +590,7 @@ def main() -> None:
             val_paths=fold_data["val"],
             config=CONFIG,
             sam_checkpoint=args.checkpoint,
+            resume_checkpoint=args.resume,
         )
         all_fold_metrics.append(best_metrics)
 

@@ -23,6 +23,7 @@ cd "$PROJECT_ROOT"
 CHECKPOINT="mobile_sam.pt"
 DATA_ROOT="data/nuinsseg"
 FOLD_ARG=""
+RESUME_ARG=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -38,9 +39,13 @@ while [[ $# -gt 0 ]]; do
             FOLD_ARG="--fold $2"
             shift 2
             ;;
+        --resume)
+            RESUME_ARG="--resume $2"
+            shift 2
+            ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: bash shell/train.sh [--checkpoint PATH] [--data_root PATH] [--fold INT]"
+            echo "Usage: bash shell/train.sh [--checkpoint PATH] [--data_root PATH] [--fold INT] [--resume CKPT_PATH]"
             exit 1
             ;;
     esac
@@ -81,12 +86,13 @@ echo "============================================================"
 # Create output directories
 mkdir -p checkpoints logs
 
-# Run training
+# Run training on GPU 0 (most free VRAM)
 # shellcheck disable=SC2086
-python train.py \
+CUDA_VISIBLE_DEVICES=0 python train.py \
     --checkpoint "$CHECKPOINT" \
     --data_root  "$DATA_ROOT" \
-    $FOLD_ARG
+    $FOLD_ARG \
+    $RESUME_ARG
 
 echo ""
 echo "Training complete."

@@ -22,17 +22,15 @@ echo " Project root: $PROJECT_ROOT"
 echo "============================================================"
 
 # ------------------------------------------------------------
-# 1. Create virtual environment
+# 1. Activate virtual environment (assumed to already exist)
 # ------------------------------------------------------------
-if [ -d "$VENV_DIR" ]; then
-    echo "[1/5] Virtual environment already exists at $VENV_DIR -- skipping creation."
-else
-    echo "[1/5] Creating virtual environment with $PYTHON_BIN ..."
-    "$PYTHON_BIN" -m venv "$VENV_DIR"
-    echo "      Created: $VENV_DIR"
+echo "[1/5] Activating existing virtual environment at $VENV_DIR ..."
+if [ ! -d "$VENV_DIR" ]; then
+    echo "ERROR: Virtual environment not found at $VENV_DIR."
+    echo "       Create it first with: $PYTHON_BIN -m venv venv"
+    exit 1
 fi
 
-# Activate
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
 echo "      Activated: $VENV_DIR"
@@ -105,3 +103,5 @@ echo " Setup complete."
 echo " Activate the environment with:"
 echo "   source venv/bin/activate"
 echo "============================================================"
+
+

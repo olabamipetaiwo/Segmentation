@@ -29,23 +29,27 @@ class DiceLoss(nn.Module):
 
     def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """
-        Compute Dice loss between sigmoid-activated predictions and binary targets.
+        Compute per-instance Dice loss averaged across the batch.
+
+        Computing Dice per nucleus (rather than globally flattening all N masks)
+        gives each instance equal gradient weight regardless of its area.
 
         Inputs:
-            predictions: float tensor of any shape, raw logits
+            predictions: float tensor (N, 1, H, W) or any shape, raw logits
             targets: float tensor of same shape, binary ground truth in [0, 1]
         Outputs:
             scalar Dice loss
         """
         activated = torch.sigmoid(predictions)
-        pred_flat = activated.reshape(-1)
-        target_flat = targets.reshape(-1)
+        N = predictions.shape[0]
+        pred_flat = activated.view(N, -1)     # (N, H*W)
+        target_flat = targets.view(N, -1)     # (N, H*W)
 
-        intersection = (pred_flat * target_flat).sum()
-        dice_score = (2.0 * intersection + self.smooth) / (
-            pred_flat.sum() + target_flat.sum() + self.smooth
+        intersection = (pred_flat * target_flat).sum(dim=1)   # (N,)
+        dice_per = (2.0 * intersection + self.smooth) / (
+            pred_flat.sum(dim=1) + target_flat.sum(dim=1) + self.smooth
         )
-        return 1.0 - dice_score
+        return (1.0 - dice_per).mean()
 
 
 class FocalLoss(nn.Module):

@@ -32,9 +32,9 @@ from models.mobile_sam_lora import MobileSAMLoRA
 from utils.metrics import aggregated_jaccard_index
 
 
-# ---------------------------------------------------------------------------
+# 
 # Colour-coded instance mask rendering
-# ---------------------------------------------------------------------------
+# 
 
 def colorise_instance_map(instance_map: np.ndarray) -> np.ndarray:
     """
@@ -85,9 +85,9 @@ def denormalise_image(image_tensor: torch.Tensor) -> np.ndarray:
     return img_np
 
 
-# ---------------------------------------------------------------------------
+# 
 # Figure generation
-# ---------------------------------------------------------------------------
+# 
 
 def save_comparison_figure(
     image_rgb: np.ndarray,
@@ -137,9 +137,9 @@ def save_comparison_figure(
     plt.close(fig)
 
 
-# ---------------------------------------------------------------------------
+# 
 # Main visualisation loop
-# ---------------------------------------------------------------------------
+# 
 
 def visualise(
     checkpoint_path: str,

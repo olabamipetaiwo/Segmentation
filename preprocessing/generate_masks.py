@@ -1,9 +1,11 @@
 """
-Generate binary masks, instance label maps, and distance maps from NuInsSeg XML annotations.
+Generate binary masks, instance label maps, and distance maps from NuInsSeg TIF label masks.
 
-The NuInsSeg dataset stores polygon annotations in XML files (one per image).
-This script walks the dataset directory, parses each XML annotation file,
-rasterises the nucleus polygons, and saves three output arrays per image:
+The NuInsSeg dataset stores pre-generated instance label maps as TIF files
+(uint16, each unique non-zero value = one nucleus instance).
+
+This script walks the dataset directory, reads each TIF label mask,
+and saves three output arrays per image:
 
     - masks/       binary foreground mask (uint8, 0/255)
     - instances/   instance label map (int32, unique ID per nucleus)
@@ -16,121 +18,57 @@ NuInsSeg GitHub reference: https://github.com/masih4/NuInsSeg
 """
 
 import argparse
-import os
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List, Tuple
 
-import cv2
 import numpy as np
+import tifffile
 from scipy.ndimage import distance_transform_edt
 
 
-# ---------------------------------------------------------------------------
-# XML parsing
-# ---------------------------------------------------------------------------
-
-def parse_xml_annotations(xml_path: str) -> List[np.ndarray]:
-    """
-    Parse a NuInsSeg XML annotation file and return nucleus polygon coordinates.
-
-    The XML format contains one or more Annotation elements, each holding
-    Region elements with Vertex children that define polygon outlines.
-
-    Inputs:
-        xml_path: path to the XML annotation file
-    Outputs:
-        list of float32 numpy arrays of shape (N_vertices, 2) in (X, Y) order,
-        one array per nucleus polygon
-    """
-    tree = ET.parse(xml_path)
-    root = tree.getroot()
-
-    polygons: List[np.ndarray] = []
-
-    # Support both flat <Annotation> and nested <Annotations><Annotation> layouts
-    for region in root.iter("Region"):
-        vertices: List[List[float]] = []
-        for vertex in region.iter("Vertex"):
-            x_val = float(vertex.get("X", 0))
-            y_val = float(vertex.get("Y", 0))
-            vertices.append([x_val, y_val])
-        if len(vertices) >= 3:
-            polygons.append(np.array(vertices, dtype=np.float32))
-
-    return polygons
-
-
-# ---------------------------------------------------------------------------
-# Mask generation
-# ---------------------------------------------------------------------------
-
-def generate_masks_for_image(
-    image_path: str,
-    xml_path: str,
+def generate_masks_from_tif(
+    tif_path: str,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Generate binary mask, instance label map, and distance transform map for one image.
+    Generate binary mask, instance label map, and distance transform map from a TIF label mask.
 
     Inputs:
-        image_path: path to the source PNG image
-        xml_path: path to the corresponding XML annotation file
+        tif_path: path to the TIF instance label map (uint16, 0 = background)
     Outputs:
-        binary_mask: uint8 numpy array (H, W) with 255 for nucleus pixels, 0 for background
-        instance_map: int32 numpy array (H, W) with a unique positive integer per nucleus
-        distance_map: float32 numpy array (H, W) with per-nucleus EDT values peaking
-                      at each nucleus centre
+        binary_mask: uint8 (H, W) with 255 for nucleus pixels, 0 for background
+        instance_map: int32 (H, W) with a unique positive integer per nucleus
+        distance_map: float32 (H, W) with per-nucleus EDT values peaking at each nucleus centre
     """
-    image = cv2.imread(image_path)
-    if image is None:
-        raise FileNotFoundError(f"Could not read image: {image_path}")
-    H, W = image.shape[:2]
+    instance_map = tifffile.imread(tif_path).astype(np.int32)
 
-    polygons = parse_xml_annotations(xml_path)
+    binary_mask = (instance_map > 0).astype(np.uint8) * 255
 
-    binary_mask = np.zeros((H, W), dtype=np.uint8)
-    instance_map = np.zeros((H, W), dtype=np.int32)
-    distance_map = np.zeros((H, W), dtype=np.float32)
-
-    for nucleus_id, polygon in enumerate(polygons, start=1):
-        # Round and reshape polygon for OpenCV (N, 1, 2)
-        poly_int = np.round(polygon).astype(np.int32).reshape(-1, 1, 2)
-
-        # Draw filled polygon for binary mask
-        cv2.fillPoly(binary_mask, [poly_int], color=255)
-
-        # Draw filled polygon for instance map with unique ID
-        nucleus_binary = np.zeros((H, W), dtype=np.uint8)
-        cv2.fillPoly(nucleus_binary, [poly_int], color=1)
-        instance_map[nucleus_binary == 1] = nucleus_id
-
-        # Per-nucleus distance transform (peaks at centre of each nucleus)
-        nucleus_float = nucleus_binary.astype(bool)
-        nucleus_distance = distance_transform_edt(nucleus_float)
-        distance_map += nucleus_distance.astype(np.float32)
+    distance_map = np.zeros(instance_map.shape, dtype=np.float32)
+    for nucleus_id in np.unique(instance_map):
+        if nucleus_id == 0:
+            continue
+        nucleus_mask = instance_map == nucleus_id
+        distance_map += distance_transform_edt(nucleus_mask).astype(np.float32)
 
     return binary_mask, instance_map, distance_map
 
-
-# ---------------------------------------------------------------------------
-# Directory traversal
-# ---------------------------------------------------------------------------
 
 def process_dataset(data_root: str) -> None:
     """
     Walk the NuInsSeg dataset directory and generate masks for all images.
 
-    Expected input layout (per tissue type):
-        <data_root>/<tissue_type>/tissue images/*.png
-        <data_root>/<tissue_type>/mask/*.xml
+    Handles two layouts:
+      1. Subdirectory layout (full multi-tissue dataset):
+           <data_root>/<tissue>/tissue images/*.png
+           <data_root>/<tissue>/label masks/*.tif
+         Outputs saved under each tissue subdirectory.
 
-    Alternatively, if images and XML files share a directory, they are
-    matched by stem name.
+      2. Flat layout (single-tissue, legacy):
+           <data_root>/tissue images/*.png
+           <data_root>/label masks/*.tif
+         Outputs saved under data_root.
 
-    Output directories are created under each tissue type folder:
-        <data_root>/<tissue_type>/masks/       binary mask NPY files
-        <data_root>/<tissue_type>/instances/   instance map NPY files
-        <data_root>/<tissue_type>/distances/   distance map NPY files
+    Skips images whose instance .npy already exists (resumable).
 
     Inputs:
         data_root: path to the root NuInsSeg directory
@@ -141,54 +79,53 @@ def process_dataset(data_root: str) -> None:
     if not data_root_path.exists():
         raise FileNotFoundError(f"Data root not found: {data_root}")
 
-    # Collect (image_path, xml_path) pairs
-    pairs: List[Tuple[Path, Path]] = []
+    # Collect (img_path, tif_path, output_dir) triples
+    triples: List[Tuple[Path, Path, Path]] = []
 
+    # Layout 1: subdirectories per tissue
     for tissue_dir in sorted(data_root_path.iterdir()):
         if not tissue_dir.is_dir():
             continue
+        sub_image_dir = tissue_dir / "tissue images"
+        sub_label_dir = tissue_dir / "label masks"
+        if sub_image_dir.exists() and sub_label_dir.exists():
+            for tif_path in sorted(sub_label_dir.glob("*.tif")):
+                img_path = sub_image_dir / (tif_path.stem + ".png")
+                if img_path.exists():
+                    triples.append((img_path, tif_path, tissue_dir))
 
-        # Layout 1: tissue images/ and mask/ subdirectories
-        image_dir = tissue_dir / "tissue images"
-        xml_dir = tissue_dir / "mask"
+    # Layout 2: flat root-level (fallback for legacy single-tissue setup)
+    root_image_dir = data_root_path / "tissue images"
+    root_label_dir = data_root_path / "label masks"
+    if root_image_dir.exists() and root_label_dir.exists():
+        for tif_path in sorted(root_label_dir.glob("*.tif")):
+            img_path = root_image_dir / (tif_path.stem + ".png")
+            if img_path.exists():
+                triples.append((img_path, tif_path, data_root_path))
 
-        if image_dir.exists() and xml_dir.exists():
-            for img_path in sorted(image_dir.glob("*.png")):
-                xml_path = xml_dir / (img_path.stem + ".xml")
-                if xml_path.exists():
-                    pairs.append((img_path, xml_path))
-                else:
-                    print(f"[WARN] No XML found for: {img_path}")
-
-        else:
-            # Layout 2: images and XML in the same directory
-            for img_path in sorted(tissue_dir.rglob("*.png")):
-                xml_path = img_path.with_suffix(".xml")
-                if xml_path.exists():
-                    pairs.append((img_path, xml_path))
-
-    if not pairs:
-        print("No image/XML pairs found. Verify the data_root layout.")
+    if not triples:
+        print("No image/TIF pairs found. Verify the data_root layout.")
         return
 
-    print(f"Found {len(pairs)} image/annotation pairs. Generating masks...")
+    print(f"Found {len(triples)} image/annotation pairs. Generating masks...")
 
-    for img_path, xml_path in pairs:
-        tissue_dir = img_path.parent.parent if "tissue" in img_path.parent.name else img_path.parent
+    skipped = 0
+    for img_path, tif_path, out_root in triples:
+        instances_dir = out_root / "instances"
+        instance_npy = instances_dir / f"{img_path.stem}.npy"
+        if instance_npy.exists():
+            skipped += 1
+            continue
 
-        masks_dir = tissue_dir / "masks"
-        instances_dir = tissue_dir / "instances"
-        distances_dir = tissue_dir / "distances"
-
+        masks_dir = out_root / "masks"
+        distances_dir = out_root / "distances"
         for directory in (masks_dir, instances_dir, distances_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
         try:
-            binary_mask, instance_map, distance_map = generate_masks_for_image(
-                str(img_path), str(xml_path)
-            )
+            binary_mask, instance_map, distance_map = generate_masks_from_tif(str(tif_path))
         except Exception as exc:
-            print(f"[ERROR] Skipping {img_path.name}: {exc}")
+            print(f"[ERROR] Skipping {tif_path.name}: {exc}")
             continue
 
         stem = img_path.stem
@@ -199,16 +136,14 @@ def process_dataset(data_root: str) -> None:
         num_nuclei = int(instance_map.max())
         print(f"  Processed: {img_path.name} ({num_nuclei} nuclei)")
 
+    if skipped:
+        print(f"  Skipped {skipped} already-processed images.")
     print("Mask generation complete.")
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Generate NuInsSeg masks from XML annotations."
+        description="Generate NuInsSeg masks from TIF label maps."
     )
     parser.add_argument(
         "--data_root",

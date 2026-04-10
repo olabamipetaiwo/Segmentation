@@ -30,9 +30,9 @@ from utils.metrics import compute_all_metrics
 from utils.prompt_utils import build_point_prompts, generate_grid_centroids
 
 
-# ---------------------------------------------------------------------------
+# 
 # NMS on binary masks
-# ---------------------------------------------------------------------------
+# 
 
 def mask_nms(
     binary_masks: List[np.ndarray],
@@ -80,9 +80,9 @@ def mask_nms(
     return keep
 
 
-# ---------------------------------------------------------------------------
+# 
 # Instance map assembly
-# ---------------------------------------------------------------------------
+# 
 
 def build_instance_map(
     binary_masks: List[np.ndarray],
@@ -117,9 +117,9 @@ def build_instance_map(
     return instance_map
 
 
-# ---------------------------------------------------------------------------
+# 
 # Single-image inference
-# ---------------------------------------------------------------------------
+# 
 
 def infer_image(
     model: MobileSAMLoRA,
@@ -197,9 +197,9 @@ def infer_image(
     return pred_instance_map, pred_binary_mask
 
 
-# ---------------------------------------------------------------------------
+# 
 # Main evaluation
-# ---------------------------------------------------------------------------
+# 
 
 def evaluate(
     checkpoint_path: str,
