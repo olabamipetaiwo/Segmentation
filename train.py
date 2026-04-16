@@ -12,11 +12,10 @@ Usage:
 import argparse
 import csv
 import json
-import os
 import random
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -29,7 +28,10 @@ from datasets.nuinsseg_dataset import NuInsSegDataset, nuinsseg_collate_fn
 from models.mobile_sam_lora import MobileSAMLoRA
 from utils.losses import CombinedLoss
 from utils.metrics import compute_all_metrics
-from utils.prompt_utils import build_point_prompts, extract_centroids_from_instances
+from utils.prompt_utils import (
+    build_box_prompts,
+    extract_boxes_from_instances,
+)
 
 # 
 # Configuration
@@ -135,41 +137,7 @@ def generate_and_save_folds(
     return folds
 
 
-# 
-# Per-step training helpers
-# 
-
-def get_nucleus_target_mask(
-    instance_map_np: np.ndarray,
-    centroid_row: float,
-    centroid_col: float,
-) -> Tuple[np.ndarray, int]:
-    """
-    Retrieve the binary target mask for the nucleus at a given centroid location.
-
-    Inputs:
-        instance_map_np: int32 numpy array (H, W) with unique nucleus IDs
-        centroid_row: row coordinate of the nucleus centroid
-        centroid_col: column coordinate of the nucleus centroid
-    Outputs:
-        nucleus_mask: float32 numpy array (H, W) with 1 where the nucleus is
-        instance_id: integer ID of the nucleus (0 means no nucleus found)
-    """
-    H, W = instance_map_np.shape
-    row_int = int(round(centroid_row))
-    col_int = int(round(centroid_col))
-    row_int = max(0, min(row_int, H - 1))
-    col_int = max(0, min(col_int, W - 1))
-
-    instance_id = int(instance_map_np[row_int, col_int])
-    if instance_id == 0:
-        return np.zeros((H, W), dtype=np.float32), 0
-
-    nucleus_mask = (instance_map_np == instance_id).astype(np.float32)
-    return nucleus_mask, instance_id
-
-
-# 
+#
 # Validation
 # 
 
@@ -181,9 +149,9 @@ def run_validation(
     iou_filter_threshold: float = 0.5,
 ) -> Dict[str, float]:
     """
-    Evaluate the model on a validation DataLoader using all GT centroids as prompts.
+    Evaluate the model on a validation DataLoader using all GT bounding boxes as prompts.
 
-    All centroids in each validation image are used (no sampling cap) so that AJI
+    All nucleus boxes in each validation image are used (no sampling cap) so that AJI
     and PQ are computed on the full instance set, not a random subset.
 
     Inputs:
@@ -204,24 +172,23 @@ def run_validation(
         for batch in val_loader:
             images = batch["image"].to(device)
             instances_batch = batch["instances"]   # stays on CPU for metric computation
-            centroids_batch = batch["centroids"]
 
             for img_idx in range(len(images)):
                 image = images[img_idx : img_idx + 1]  # (1, 3, H, W)
                 gt_instance_map = instances_batch[img_idx, 0].numpy()  # (H, W)
-                centroids = centroids_batch[img_idx]
 
-                if not centroids:
+                boxes, _ = extract_boxes_from_instances(gt_instance_map)
+                if not boxes:
                     continue
 
-                # Process prompts in chunks to avoid OOM on images with many nuclei
+                # Process in chunks to avoid OOM on images with many nuclei
                 val_chunk = 16
                 all_masks_np: List[np.ndarray] = []
                 all_iou_np: List[float] = []
-                for chunk_start in range(0, len(centroids), val_chunk):
-                    chunk = centroids[chunk_start : chunk_start + val_chunk]
-                    pc, pl = build_point_prompts(chunk, device=device)
-                    lrm, iou_c = model(image, pc, pl)
+                for chunk_start in range(0, len(boxes), val_chunk):
+                    chunk = boxes[chunk_start : chunk_start + val_chunk]
+                    box_tensor = build_box_prompts(chunk, device=device)
+                    lrm, iou_c = model(image, boxes=box_tensor)
                     pm = model.upsample_masks(lrm, (image_size, image_size))
                     all_masks_np.append(
                         (torch.sigmoid(pm).squeeze(1).cpu().numpy() > 0.5)
@@ -382,7 +349,6 @@ def train_one_fold(
         for batch in pbar:
             images = batch["image"].to(device)            # (B, 3, H, W)
             instances_batch = batch["instances"]          # (B, 1, H, W) on CPU
-            centroids_batch = batch["centroids"]          # list of B lists
 
             optimizer.zero_grad()
             batch_loss = torch.tensor(0.0, device=device, requires_grad=False)
@@ -391,51 +357,28 @@ def train_one_fold(
             for img_idx in range(len(images)):
                 image = images[img_idx : img_idx + 1]     # (1, 3, H, W)
                 instance_map_np = instances_batch[img_idx, 0].numpy()
-                centroids = centroids_batch[img_idx]
 
-                if not centroids:
+                # Extract GT bounding boxes and matching instance IDs in one pass
+                all_boxes, all_instance_ids = extract_boxes_from_instances(instance_map_np)
+                if not all_boxes:
                     continue
 
-                # Sample a subset of nuclei for this step
-                sampled_centroids = (
-                    random.sample(centroids, max_prompts)
-                    if len(centroids) > max_prompts
-                    else centroids
-                )
+                # Sample a random subset of nuclei to stay within GPU memory budget
+                if len(all_boxes) > max_prompts:
+                    indices = random.sample(range(len(all_boxes)), max_prompts)
+                    sampled_boxes = [all_boxes[i] for i in indices]
+                    sampled_ids = [all_instance_ids[i] for i in indices]
+                else:
+                    sampled_boxes = all_boxes
+                    sampled_ids = all_instance_ids
 
-                # Build target masks and valid prompt list
-                valid_centroids: List[Tuple[float, float]] = []
-                target_mask_list: List[np.ndarray] = []
+                # Build per-nucleus binary target masks directly from instance IDs
+                target_mask_list = [
+                    (instance_map_np == iid).astype(np.float32)
+                    for iid in sampled_ids
+                ]
 
-                for centroid_row, centroid_col in sampled_centroids:
-                    nucleus_mask, instance_id = get_nucleus_target_mask(
-                        instance_map_np, centroid_row, centroid_col
-                    )
-                    if instance_id == 0:
-                        continue
-                    valid_centroids.append((centroid_row, centroid_col))
-                    target_mask_list.append(nucleus_mask)
-
-                if not valid_centroids:
-                    continue
-
-                # Sample one background (negative) point per nucleus.
-                # Picking a point from the background region improves boundary
-                # delineation and is standard practice when fine-tuning SAM.
-                bg_pixels = np.argwhere(instance_map_np == 0)
-                neg_centroids: List[Tuple[float, float]] = []
-                for _ in valid_centroids:
-                    if len(bg_pixels) > 0:
-                        idx = random.randrange(len(bg_pixels))
-                        neg_centroids.append(
-                            (float(bg_pixels[idx, 0]), float(bg_pixels[idx, 1]))
-                        )
-                    else:
-                        neg_centroids.append((0.0, 0.0))
-
-                point_coords, point_labels = build_point_prompts(
-                    valid_centroids, neg_centroids=neg_centroids, device=device
-                )
+                box_tensor = build_box_prompts(sampled_boxes, device=device)  # (K, 4)
 
                 # Stack targets: (K, 1, H, W)
                 target_masks = torch.from_numpy(
@@ -444,7 +387,7 @@ def train_one_fold(
 
                 # Forward pass with AMP
                 with torch.cuda.amp.autocast(enabled=(device == "cuda")):
-                    low_res_masks, iou_preds = model(image, point_coords, point_labels)
+                    low_res_masks, iou_preds = model(image, boxes=box_tensor)
 
                     # Upsample predictions to full resolution for loss
                     pred_masks = model.upsample_masks(

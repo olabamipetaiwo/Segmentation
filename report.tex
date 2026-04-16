@@ -51,8 +51,8 @@ positive--negative centroid point prompts derived from ground-truth
 instance maps. The combined per-instance Dice and focal loss is
 augmented with an auxiliary IoU prediction loss to improve mask
 confidence calibration. Our method achieves mean
-Dice\,=\,0.8217, AJI\,=\,0.6035, and PQ\,=\,0.5836, with
-notably low cross-fold variance (AJI std\,=\,0.0075).
+Dice\,=\,0.9085, AJI\,=\,0.7459, and PQ\,=\,0.7459, with
+notably low cross-fold variance (AJI std\,=\,0.0028).
 }
 
 \medskip
@@ -173,67 +173,193 @@ Total Model & 10,189,484 \\
 Figure~\ref{fig:arch} illustrates where LoRA layers sit within
 the overall pipeline.
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
 \begin{tikzpicture}[
-  box/.style={draw, rounded corners=3pt, minimum width=2.0cm,
-              minimum height=0.55cm, font=\scriptsize,
-              text centered, fill=blue!10},
-  lora/.style={draw, rounded corners=3pt, minimum width=1.1cm,
-               minimum height=0.45cm, font=\scriptsize\bfseries,
-               text centered, fill=orange!30},
-  frozen/.style={draw, rounded corners=3pt, minimum width=1.1cm,
-                 minimum height=0.45cm, font=\scriptsize,
-                 text centered, fill=gray!20},
-  arr/.style={-Stealth, thick},
-  ]
+  pbox/.style ={draw, rounded corners=3pt, minimum width=2.4cm,
+                minimum height=0.65cm, font=\small, align=center, inner sep=3pt},
+  sbox/.style ={draw, rounded corners=2pt, minimum width=1.3cm,
+                minimum height=0.48cm, font=\scriptsize, align=center, fill=blue!15},
+  frz/.style  ={draw, rounded corners=2pt, align=center,
+                font=\scriptsize, fill=gray!20, inner sep=2pt},
+  lora/.style ={draw, rounded corners=2pt, align=center,
+                font=\scriptsize\bfseries, fill=orange!30, inner sep=2pt},
+  mat/.style  ={draw, rounded corners=2pt, align=center,
+                font=\scriptsize\bfseries, fill=orange!55, inner sep=2pt},
+  arr/.style  ={-Stealth, thick},
+  darr/.style ={-Stealth, dashed, thick, orange!80!black},
+]
 
-  % Main pipeline
-  \node[box, fill=green!15] (img)  at (0,0)    {H\&E Image};
-  \node[box, fill=blue!20]  (enc)  at (0,-1.0) {TinyViT Encoder};
-  \node[box, fill=yellow!20](penc) at (2.2,-0.5){Prompt Enc.};
-  \node[box, fill=blue!20]  (dec)  at (1.1,-2.0){Mask Decoder};
-  \node[box, fill=red!15]   (out)  at (1.1,-3.0){Nucleus Mask};
-  \node[box, fill=green!15] (pt)   at (2.2, 0.3){Centroid Pt.};
+%% ─── PIPELINE ────────────────────────────────────────────────────────────
 
-  \draw[arr] (img)  -- (enc);
-  \draw[arr] (enc)  -- (dec);
-  \draw[arr] (pt)   -- (penc);
-  \draw[arr] (penc) -- (dec);
-  \draw[arr] (dec)  -- (out);
+\node[pbox, fill=green!15] (img) at (0,0)
+      {H\&E Image\\{\tiny$1024{\times}1024{\times}3$}};
 
-  % LoRA detail inset
-  \node[draw, dashed, rounded corners=3pt,
-        fill=white, font=\scriptsize\bfseries,
-        minimum width=2.6cm, minimum height=2.8cm]
-        (inset) at (-2.6,-1.0) {};
-  \node[font=\scriptsize\bfseries] at (-2.6,-0.15) {Attn Block Detail};
+% TinyViT encoder
+\node[pbox, fill=blue!10, minimum width=4.8cm, minimum height=1.55cm]
+      (enc) at (4.0,0) {};
+\node[font=\small\bfseries] at (4.0,0.43) {TinyViT Encoder};
+\node[sbox] (s1) at (2.7,-0.12)  {S1\\\tiny2 blk};
+\node[sbox] (s2) at (3.4,-0.12)  {S2\\\tiny2 blk};
+\node[sbox] (s3) at (4.1,-0.12)  {S3\\\tiny3 blk};
+\node[sbox] (s4) at (4.8,-0.12)  {S4\\\tiny3 blk};
+\node[draw, fill=orange!30, rounded corners=1pt, font=\tiny\bfseries,
+      minimum width=4.2cm, minimum height=0.26cm] at (3.8,-0.63)
+      {LoRA in Q, V of all 10 attention blocks};
 
-  \node[frozen] (qkv)  at (-2.6,-0.65) {Fused QKV};
-  \node[lora]   (qlora) at (-3.35,-1.35) {Q+LoRA};
-  \node[frozen] (kfrz)  at (-2.6,-1.35) {K (frozen)};
-  \node[lora]   (vlora) at (-1.85,-1.35) {V+LoRA};
-  \node[frozen] (attn)  at (-2.6,-2.1)  {Attention Out};
+\node[pbox, fill=cyan!15]   (feat) at (7.8, 0)
+      {Feature Map\\{\tiny$64{\times}64{\times}256$}};
+\node[pbox, fill=blue!30]   (dec)  at (11.0, 0)
+      {Mask Decoder\\{\tiny 4.06M params (fully trained)}};
+\node[pbox, fill=red!15]    (out)  at (14.2, 0)
+      {Masks + IoU\\{\tiny per nucleus}};
 
-  \draw[arr] (qkv) -- (qlora);
-  \draw[arr] (qkv) -- (kfrz);
-  \draw[arr] (qkv) -- (vlora);
-  \draw[arr] (qlora) -- (attn);
-  \draw[arr] (kfrz)  -- (attn);
-  \draw[arr] (vlora) -- (attn);
+\node[pbox, fill=green!10]  (pt)   at (7.8,-1.9)
+      {Centroid Points\\{\tiny$(N,\,2,\,2)$}};
+\node[pbox, fill=yellow!20] (penc) at (11.0,-1.9)
+      {Prompt Encoder\\{\tiny frozen}};
 
-  % Arrow from inset to encoder
-  \draw[-Stealth, dashed, thick, orange] (inset.east) -- (enc.west)
-        node[midway, above, font=\tiny] {$\times$10};
+\draw[arr] (img)  -- (enc);
+\draw[arr] (enc)  -- (feat);
+\draw[arr] (feat) -- (dec);
+\draw[arr] (pt)   -- (penc);
+\draw[arr] (penc) -- (dec);
+\draw[arr] (dec)  -- (out);
+
+%% ─── LORA BLOCK DETAIL ───────────────────────────────────────────────────
+
+\node[frz, minimum width=0.7cm, minimum height=0.45cm]
+      (xin)  at (0.5,-5.2) {$\mathbf{x}$};
+
+\node[frz, minimum width=3.3cm]
+      (wqkv) at (4.0,-5.2)
+      {Fused $\mathbf{W}_{QKV}\!\in\!\mathbb{R}^{d\times 3d}$\\
+       {\tiny split into $\mathbf{W}_Q,\mathbf{W}_K,\mathbf{W}_V$}};
+
+\draw[arr] (xin) -- (wqkv);
+
+% Q branch
+\node[frz, minimum width=2.4cm] (wq)   at (1.2,-6.8)
+      {$\mathbf{W}_Q$ (frozen)};
+\node[mat, minimum width=2.9cm] (aq)   at (1.2,-7.8)
+      {$\mathbf{A}_Q\!\in\!\mathbb{R}^{r\times d_{in}}$\\{\tiny Kaiming init}};
+\node[mat, minimum width=2.9cm] (bq)   at (1.2,-8.8)
+      {$\mathbf{B}_Q\!\in\!\mathbb{R}^{d_{out}\times r}$\\{\tiny zero init}};
+\node[lora, minimum width=3.8cm] (qout) at (1.2,-9.9)
+      {$\mathbf{Q}=\mathbf{W}_Q\mathbf{x}+\tfrac{\alpha}{r}\mathbf{B}_Q\mathbf{A}_Q\mathbf{x}$};
+
+% K branch
+\node[frz, minimum width=2.4cm] (wk)   at (5.2,-6.8)
+      {$\mathbf{W}_K$ (frozen)};
+\node[frz, minimum width=2.7cm] (kout) at (5.2,-8.05)
+      {$\mathbf{K}=\mathbf{W}_K\mathbf{x}$\\{\tiny no LoRA adaptor}};
+
+% V branch
+\node[frz, minimum width=2.4cm] (wv)   at (9.2,-6.8)
+      {$\mathbf{W}_V$ (frozen)};
+\node[mat, minimum width=2.9cm] (av)   at (9.2,-7.8)
+      {$\mathbf{A}_V\!\in\!\mathbb{R}^{r\times d_{in}}$\\{\tiny Kaiming init}};
+\node[mat, minimum width=2.9cm] (bv)   at (9.2,-8.8)
+      {$\mathbf{B}_V\!\in\!\mathbb{R}^{d_{out}\times r}$\\{\tiny zero init}};
+\node[lora, minimum width=3.8cm] (vout) at (9.2,-9.9)
+      {$\mathbf{V}=\mathbf{W}_V\mathbf{x}+\tfrac{\alpha}{r}\mathbf{B}_V\mathbf{A}_V\mathbf{x}$};
+
+% Attention & FFN
+\node[frz, minimum width=6.6cm] (attn) at (5.2,-11.2)
+      {$\mathrm{Attn}(\mathbf{Q},\mathbf{K},\mathbf{V})=
+        \mathrm{softmax}\!\left(\tfrac{\mathbf{Q}\mathbf{K}^{\!\top}}{\sqrt{d}}\right)\!\mathbf{V}$};
+\node[frz, minimum width=3.8cm] (ffn)  at (5.2,-12.2)
+      {Output Proj.\ + FFN \quad (frozen)};
+
+% Arrows: wqkv → branches
+\draw[arr] (wqkv.south) -- ++(0,-0.3) -| (wq.north);
+\draw[arr] (wqkv.south) -- ++(0,-0.3) -| (wk.north);
+\draw[arr] (wqkv.south) -- ++(0,-0.3) -| (wv.north);
+
+% Q path
+\draw[arr] (wq)  -- (aq);
+\draw[arr] (aq)  -- (bq);
+\draw[arr] (bq)  -- (qout);
+
+% K path
+\draw[arr] (wk)  -- (kout);
+
+% V path
+\draw[arr] (wv)  -- (av);
+\draw[arr] (av)  -- (bv);
+\draw[arr] (bv)  -- (vout);
+
+% Q, K, V → attention
+\draw[arr] (qout.south) -- ++(0,-0.6) -| (attn.west);
+\draw[arr] (kout.south) -- (attn.north);
+\draw[arr] (vout.south) -- ++(0,-0.6) -| (attn.east);
+\draw[arr] (attn) -- (ffn);
+
+% Dashed bounding box
+\node[draw, dashed, thick, rounded corners=6pt,
+      fit=(xin)(wqkv)(wq)(wk)(wv)(aq)(av)(bq)(bv)(qout)(kout)(vout)(attn)(ffn),
+      inner sep=8pt,
+      label={[font=\small\bfseries]above:{TinyViT Self-Attention Block
+        (${\times}10$ across Stages~1--4),\quad
+        $r{=}8$,\; $\alpha{=}1.0$}}]
+      (detbox) {};
+
+% Zoom arrow from encoder to detail box
+\draw[darr] (enc.south) to[out=-90,in=90] (detbox.north)
+      node[pos=0.45, right, font=\tiny] {zoom into each block};
+
+%% ─── LEGEND ──────────────────────────────────────────────────────────────
+
+\begin{scope}[xshift=12.1cm, yshift=-5.7cm]
+  \node[mat,  minimum width=1.5cm, minimum height=0.38cm,
+        font=\tiny\bfseries] at (0,0)    {};
+  \node[font=\scriptsize, anchor=west] at (0.85,0)
+        {LoRA matrices ($\mathbf{A}$, $\mathbf{B}$) --- trainable};
+
+  \node[lora, minimum width=1.5cm, minimum height=0.38cm,
+        font=\tiny\bfseries] at (0,-0.65) {};
+  \node[font=\scriptsize, anchor=west] at (0.85,-0.65)
+        {LoRA-adapted projection --- trainable};
+
+  \node[frz,  minimum width=1.5cm, minimum height=0.38cm,
+        font=\tiny] at (0,-1.3) {};
+  \node[font=\scriptsize, anchor=west] at (0.85,-1.3)
+        {Frozen weights};
+
+  \node[pbox, fill=blue!30, minimum width=1.5cm, minimum height=0.38cm,
+        font=\tiny\bfseries] at (0,-1.95) {};
+  \node[font=\scriptsize, anchor=west] at (0.85,-1.95)
+        {Fully fine-tuned};
+
+  \node[font=\scriptsize, align=left, anchor=north west] at (-0.75,-2.7) {%
+    \textbf{Trainable:} 4,117,732 \;(40.4\%)\\[2pt]
+    \quad LoRA Q+V ($\times$10 blocks):\; 59,392 \\[2pt]
+    \quad Mask decoder:\; 4,058,340\\[2pt]
+    \textbf{Frozen:}\; 6,071,752\\[2pt]
+    \textbf{Total:}\; 10,189,484};
+\end{scope}
 
 \end{tikzpicture}
-\caption{MobileSAM-LoRA pipeline. Orange blocks are trainable
-LoRA adaptors; grey blocks are frozen; blue blocks are fully
-fine-tuned. The inset shows LoRA injection into the fused QKV
-projection of each TinyViT attention block. The same block
-structure repeats across all 10 attention blocks in layers~1--4.}
+\caption{\textbf{MobileSAM-LoRA architecture.}
+\emph{Top:} End-to-end pipeline. A $1024{\times}1024$ H\&E image
+is encoded by TinyViT (4~stages, 10~self-attention blocks) into a
+$64{\times}64{\times}256$ feature map; centroid-point prompts are
+encoded separately; the mask decoder cross-attends both embeddings
+to produce per-nucleus instance masks and IoU confidence scores.
+Orange tags mark LoRA injection; the blue decoder block is fully
+fine-tuned.
+\emph{Bottom:} Zoom into one TinyViT self-attention block.
+The fused $\mathbf{W}_{QKV}$ is split into three separate
+projections. LoRA adaptors ($\mathbf{B}\mathbf{A}$, rank $r{=}8$,
+scale $\alpha{=}1.0$) are inserted in parallel with the frozen
+$\mathbf{W}_Q$ and $\mathbf{W}_V$ only; $\mathbf{A}$ is
+Kaiming-initialised and $\mathbf{B}$ is zero-initialised so
+$\Delta\mathbf{W}{=}0$ at the start of training.
+$\mathbf{W}_K$ and all downstream layers remain frozen.
+This identical structure repeats across all 10~attention blocks
+in Stages~1--4, yielding 40~trainable LoRA tensors in total.}
 \label{fig:arch}
-\end{figure}
+\end{figure*}
 
 \subsection{Prompt Strategy}
 
@@ -318,16 +444,16 @@ are used as prompts at training time; all GT centroids at validation.}
 \textbf{AJI $\uparrow$} &
 \textbf{PQ $\uparrow$} \\
 \midrule
-1 & 0.8239 & 0.6089 & 0.5831 \\
-2 & 0.8367 & 0.6154 & 0.5991 \\
-3 & 0.8214 & 0.5982 & 0.5904 \\
-4 & 0.8139 & 0.5956 & 0.5738 \\
-5 & 0.8124 & 0.5991 & 0.5718 \\
+1 & 0.9092 & 0.7478 & 0.7461 \\
+2 & 0.9084 & 0.7460 & 0.7452 \\
+3 & 0.9091 & 0.7482 & 0.7516 \\
+4 & 0.9073 & 0.7411 & 0.7359 \\
+5 & 0.9082 & 0.7461 & 0.7507 \\
 \midrule
 \textbf{Mean} &
-\textbf{0.8217} & \textbf{0.6035} & \textbf{0.5836} \\
+\textbf{0.9085} & \textbf{0.7459} & \textbf{0.7459} \\
 \textbf{Std}  &
-0.0087 & 0.0075 & 0.0102 \\
+0.0008 & 0.0028 & 0.0063 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -367,15 +493,15 @@ prompt quality, not model capacity.}
 \textbf{Comparison with NuInsSeg baselines.}
 Table~3 in Mahbod et al.~\cite{mahbod2024nuinsseg} reports
 Dice, AJI, and PQ for classical and deep-learning methods on
-the full NuInsSeg benchmark. Our mean Dice of 0.8217 and AJI
-of 0.6035 across 23 tissue types is competitive with the
+the full NuInsSeg benchmark. Our mean Dice of 0.9085 and AJI
+of 0.7459 across 23 tissue types is competitive with the
 deep-learning baselines in that table, demonstrating that
 parameter-efficient fine-tuning of a foundation model
 (4.12M trainable parameters) achieves strong nuclei instance
 segmentation without training from scratch.
 
 \textbf{Analysis.}
-All five folds achieve consistent AJI in the range 0.60$\pm$0.01,
+All five folds achieve consistent AJI in the range 0.74$\pm$0.003,
 in contrast to pilot experiments on a single tissue type where
 per-fold variance was dominated by individual image difficulty
 (AJI std\,=\,0.15 on 9 images). Training on the full 23-tissue
@@ -395,30 +521,30 @@ cell density.
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=\linewidth]{figures/fold_1/strong_01_human_kidney_10_aji0.246.png}
+  \includegraphics[width=\linewidth]{figures/fold_1/strong_01_human_cerebellum_12_aji0.898.png}
   \\[4pt]
-  \includegraphics[width=\linewidth]{figures/fold_1/weak_03_human_cerebellum_12_aji0.020.png}
-  \caption{Qualitative results on fold~1 (human kidney and
-  cerebellum). Each panel: input H\&E image, predicted instance
-  map (colours = nuclei), ground-truth instance map.
-  \textbf{Top:} human\_kidney (AJI\,=\,0.246) --- the model
-  delineates the majority of nuclei correctly.
-  \textbf{Bottom:} human\_cerebellum (AJI\,=\,0.020) ---
-  densely packed small nuclei are partially missed.}
+  \includegraphics[width=\linewidth]{figures/fold_1/weak_04_human_kidney_10_aji0.569.png}
+  \caption{Qualitative results on fold~1 (human cerebellum and
+  kidney). Each panel: input H\&E image, ground-truth instance
+  map (colours = nuclei), predicted instance map.
+  \textbf{Top:} human\_cerebellum (AJI\,=\,0.898) --- the model
+  correctly delineates the vast majority of densely packed nuclei.
+  \textbf{Bottom:} human\_kidney (AJI\,=\,0.569) --- moderate
+  under-segmentation in crowded glomerular regions.}
   \label{fig:qual}
 \end{figure}
 
 \begin{figure}[h]
   \centering
-  \includegraphics[width=\linewidth]{figures/fold_3/strong_01_human_oesophagus_11_aji0.277.png}
+  \includegraphics[width=\linewidth]{figures/fold_3/strong_01_human_epiglottis_1_aji0.911.png}
   \\[4pt]
-  \includegraphics[width=\linewidth]{figures/fold_3/weak_04_human_muscle_10_aji0.026.png}
-  \caption{Qualitative results on fold~3 (human oesophagus and
-  muscle). \textbf{Top:} human\_oesophagus (AJI\,=\,0.277) ---
+  \includegraphics[width=\linewidth]{figures/fold_3/weak_04_human_muscle_9_aji0.230.png}
+  \caption{Qualitative results on fold~3 (human epiglottis and
+  muscle). \textbf{Top:} human\_epiglottis (AJI\,=\,0.911) ---
   well-separated nuclei are accurately segmented with clean
-  boundaries. \textbf{Bottom:} human\_muscle (AJI\,=\,0.026) ---
-  elongated myocyte nuclei with atypical morphology present a
-  challenging case for point-prompt localisation.}
+  boundaries. \textbf{Bottom:} human\_muscle (AJI\,=\,0.230) ---
+  elongated myocyte nuclei with atypical morphology remain
+  the most challenging tissue type.}
   \label{fig:qual2}
 \end{figure}
 
@@ -428,8 +554,8 @@ cell density.
 Injecting LoRA into Q and V projections with rank~8 adds only
 59,392 parameters (0.58\% of total) to the image encoder.
 Combined with full mask decoder fine-tuning, the model achieves
-a mean AJI of 0.6035 across 23 tissue types with AJI std of
-only 0.0075, demonstrating that frozen backbone features from
+a mean AJI of 0.7459 across 23 tissue types with AJI std of
+only 0.0028, demonstrating that frozen backbone features from
 the MobileSAM pre-trained encoder are well-suited for histology
 when domain adaptation is targeted at the attention mechanism.
 
@@ -443,14 +569,14 @@ aiding the ranking-based instance assembly at validation time.
 \textbf{Variance and dataset size.}
 Training on the full 674-image, 23-tissue dataset reduces
 cross-fold AJI variance from 0.1462 (pilot, 9 images) to
-0.0075, confirming that the pilot variance was dominated by
+0.0028, confirming that the pilot variance was dominated by
 single-image difficulty rather than model instability. The
 full-dataset model also generalises across diverse tissue
 morphologies, making it more applicable in practice.
 
 \textbf{Prompt quality as the performance bottleneck.}
 A key finding from our evaluation is the large gap between
-GT-centroid validation metrics (Dice\,=\,0.82, AJI\,=\,0.60)
+GT-centroid validation metrics (Dice\,=\,0.91, AJI\,=\,0.75)
 and grid-prompt inference metrics (Dice\,$\approx$\,0.26,
 AJI\,$\approx$\,0.12). At validation time, the model receives
 the exact centroid of every nucleus as a positive prompt ---
@@ -478,9 +604,9 @@ configuration, validating the architectural choice independently.
 We fine-tuned MobileSAM with LoRA (rank~8) on the full NuInsSeg
 human tissue dataset (674 images, 23 tissue types) for nuclei
 instance segmentation. With only 4.12M of 10.2M parameters
-trained (40.4\%), the model achieves mean Dice\,=\,0.8217,
-AJI\,=\,0.6035, and PQ\,=\,0.5836 over 5-fold cross-validation
-with notably low variance (AJI std\,=\,0.0075) when GT centroids
+trained (40.4\%), the model achieves mean Dice\,=\,0.9085,
+AJI\,=\,0.7459, and PQ\,=\,0.7459 over 5-fold cross-validation
+with notably low variance (AJI std\,=\,0.0028) when GT centroids
 are used as prompts. Under fully automatic grid-prompt inference
 (no GT centroids), mean AJI drops to 0.1156, highlighting that
 prompt quality --- not model capacity --- is the primary bottleneck

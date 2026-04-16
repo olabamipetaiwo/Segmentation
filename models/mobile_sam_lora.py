@@ -8,7 +8,7 @@ domain adaptation, and freezes all other parameters.
 MobileSAM GitHub: https://github.com/ChaoningZhang/MobileSAM
 """
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -74,25 +74,40 @@ class MobileSAMLoRA(nn.Module):
     def forward(
         self,
         image: torch.Tensor,
-        point_coords: torch.Tensor,
-        point_labels: torch.Tensor,
+        point_coords: Optional[torch.Tensor] = None,
+        point_labels: Optional[torch.Tensor] = None,
+        boxes: Optional[torch.Tensor] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Run MobileSAM with point prompts on a single preprocessed image.
+        Run MobileSAM with either box or point prompts on a single preprocessed image.
 
-        The image encoder is run once; its embedding is shared across all N
-        prompts by SAM's internal repeat_interleave mechanism in the mask decoder.
+        Exactly one of ``boxes`` or (``point_coords``, ``point_labels``) must be
+        provided. Box prompts are preferred: each box tightly encodes the spatial
+        extent of a nucleus, giving the decoder stronger positional signal than a
+        single centroid point.
+
+        The image encoder is run once; its embedding is shared across all N prompts
+        by SAM's internal repeat_interleave mechanism in the mask decoder.
 
         Inputs:
             image: float32 tensor (1, 3, 1024, 1024) normalised with SAM pixel stats
-            point_coords: float32 tensor (N, 1, 2) in (x, y) = (col, row) order
-            point_labels: int32 tensor (N, 1), all values 1 (foreground)
+            point_coords: float32 tensor (N, P, 2) in (x, y) = (col, row) order
+            point_labels: int32 tensor (N, P)
+            boxes: float32 tensor (N, 4) in SAM [x1, y1, x2, y2] = [col_min, row_min,
+                   col_max, row_max] order; when provided, point prompts are ignored
         Outputs:
             low_res_masks: float32 tensor (N, 1, 256, 256), raw mask logits
             iou_predictions: float32 tensor (N, 1), predicted IoU scores
         """
-        num_prompts = point_coords.shape[0]
         device = image.device
+
+        # Determine number of prompts and early-exit on empty input
+        if boxes is not None:
+            num_prompts = boxes.shape[0]
+        elif point_coords is not None:
+            num_prompts = point_coords.shape[0]
+        else:
+            num_prompts = 0
 
         if num_prompts == 0:
             return (
@@ -108,14 +123,19 @@ class MobileSAMLoRA(nn.Module):
         # batch_size=1 to batch_size=N (number of prompts).
         image_pe = self.sam.prompt_encoder.get_dense_pe()
 
-        # Encode N separate single-point prompts
-        # sparse_embeddings: (N, num_tokens, 256)
-        # dense_embeddings:  (N, 256, 64, 64)
-        sparse_embeddings, dense_embeddings = self.sam.prompt_encoder(
-            points=(point_coords, point_labels),
-            boxes=None,
-            masks=None,
-        )
+        # Encode prompts — use boxes when available, fall back to points
+        if boxes is not None:
+            sparse_embeddings, dense_embeddings = self.sam.prompt_encoder(
+                points=None,
+                boxes=boxes,    # (N, 4) → encodes top-left & bottom-right corners
+                masks=None,
+            )
+        else:
+            sparse_embeddings, dense_embeddings = self.sam.prompt_encoder(
+                points=(point_coords, point_labels),
+                boxes=None,
+                masks=None,
+            )
 
         # Decode masks; mask decoder expands image_embedding from (1,...) to (N,...)
         low_res_masks, iou_predictions = self.sam.mask_decoder(

@@ -1,5 +1,5 @@
 """
-Utility functions for constructing SAM point prompts from instance label maps.
+Utility functions for constructing SAM point and box prompts from instance label maps.
 """
 
 from typing import List, Optional, Tuple
@@ -79,6 +79,54 @@ def build_point_prompts(
         )  # (N, 1)
 
     return point_coords, point_labels
+
+
+def extract_boxes_from_instances(
+    instance_map: np.ndarray,
+) -> Tuple[List[Tuple[float, float, float, float]], List[int]]:
+    """
+    Extract axis-aligned bounding boxes and instance IDs from an instance label map.
+
+    Inputs:
+        instance_map: integer numpy array of shape (H, W) where each nucleus
+                      occupies pixels with a unique positive integer ID and
+                      background is 0
+    Outputs:
+        boxes: list of (row_min, col_min, row_max, col_max) float tuples
+        instance_ids: list of integer nucleus IDs, one per box
+    """
+    props = regionprops(instance_map)
+    boxes = [
+        (float(p.bbox[0]), float(p.bbox[1]), float(p.bbox[2]), float(p.bbox[3]))
+        for p in props
+    ]
+    instance_ids = [p.label for p in props]
+    return boxes, instance_ids
+
+
+def build_box_prompts(
+    boxes: List[Tuple[float, float, float, float]],
+    device: str = "cpu",
+) -> torch.Tensor:
+    """
+    Build a box prompt tensor in the format expected by SAM's prompt encoder.
+
+    SAM uses (x, y) = (col, row) coordinate ordering and expects boxes as
+    [x1, y1, x2, y2] = [col_min, row_min, col_max, row_max].
+
+    Inputs:
+        boxes: list of (row_min, col_min, row_max, col_max) bounding boxes
+        device: torch device string on which to place the output tensor
+    Outputs:
+        float32 tensor of shape (N, 4) in SAM [x1, y1, x2, y2] order
+    """
+    if len(boxes) == 0:
+        return torch.zeros(0, 4, dtype=torch.float32, device=device)
+    sam_boxes = [
+        [col_min, row_min, col_max, row_max]
+        for row_min, col_min, row_max, col_max in boxes
+    ]
+    return torch.tensor(sam_boxes, dtype=torch.float32, device=device)
 
 
 def generate_grid_centroids(
